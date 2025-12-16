@@ -50,23 +50,10 @@ class TasksTab extends ConsumerWidget {
             label: const Text('Add Task'),
           ),
 
-          const SizedBox(width: 8),
-
-          // Edit button
-          OutlinedButton.icon(
-            onPressed: tasksState.tasks.isEmpty
-                ? null
-                : () {
-                    _showEditMessage(context);
-                  },
-            icon: const Icon(Icons.edit_outlined, size: 20),
-            label: const Text('Edit'),
-          ),
-
           const Spacer(),
 
           // Start all button
-          if (tasksState.tasks.isNotEmpty) ...[
+          if (tasksState.configuredTasks.isNotEmpty) ...[
             FilledButton.tonalIcon(
               onPressed: () => ref.read(tasksProvider.notifier).startAll(),
               icon: const Icon(Icons.play_arrow, size: 20),
@@ -218,7 +205,7 @@ class TasksTab extends ConsumerWidget {
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.delete_outline),
         title: const Text('Delete Task?'),
-        content: Text('Remove monitoring for "${task.movieName}"?'),
+        content: Text('Remove monitoring for "${task.displayName}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -235,15 +222,6 @@ class TasksTab extends ConsumerWidget {
             child: const Text('Delete'),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showEditMessage(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Tap on a task card to edit'),
-        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -268,6 +246,7 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isConfigured = task.isConfigured;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -280,44 +259,10 @@ class _TaskCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Movie icon with status indicator
-                  Stack(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isRunning
-                              ? colorScheme.primaryContainer
-                              : colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.movie,
-                          color: isRunning
-                              ? colorScheme.onPrimaryContainer
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (isRunning)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: colorScheme.surface,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                  // Movie poster or icon
+                  _buildPoster(colorScheme),
                   const SizedBox(width: 14),
 
                   // Task info
@@ -325,11 +270,31 @@ class _TaskCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (!isConfigured)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            margin: const EdgeInsets.only(bottom: 4),
+                            decoration: BoxDecoration(
+                              color: colorScheme.errorContainer,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'INCOMPLETE',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
                         Text(
-                          task.movieName,
+                          task.movieName ?? 'No movie selected',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
@@ -343,13 +308,33 @@ class _TaskCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Flexible(
                               child: Text(
-                                '${task.theatreName} • ${task.cityName}',
+                                task.theatreName ??
+                                    task.cityName ??
+                                    'No location',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: colorScheme.onSurfaceVariant,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 14,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              task.dateDescription,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -374,15 +359,7 @@ class _TaskCard extends StatelessWidget {
               // Bottom row with details and toggle
               Row(
                 children: [
-                  // Days
-                  _InfoChip(
-                    icon: Icons.calendar_today,
-                    label: '${task.days} days',
-                    colorScheme: colorScheme,
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Statuses
+                  // Status chips
                   _InfoChip(
                     icon: Icons.check_circle_outline,
                     label: task.statuses.join(', '),
@@ -391,7 +368,7 @@ class _TaskCard extends StatelessWidget {
 
                   const Spacer(),
 
-                  // Status text
+                  // Status indicator
                   if (isRunning)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -430,7 +407,7 @@ class _TaskCard extends StatelessWidget {
 
                   // Toggle button
                   FilledButton.icon(
-                    onPressed: onToggle,
+                    onPressed: isConfigured ? onToggle : null,
                     icon: Icon(
                       isRunning ? Icons.stop : Icons.play_arrow,
                       size: 18,
@@ -452,6 +429,41 @@ class _TaskCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPoster(ColorScheme colorScheme) {
+    if (task.moviePoster != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          task.moviePoster!,
+          width: 50,
+          height: 75,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildDefaultPoster(colorScheme),
+        ),
+      );
+    }
+    return _buildDefaultPoster(colorScheme);
+  }
+
+  Widget _buildDefaultPoster(ColorScheme colorScheme) {
+    return Container(
+      width: 50,
+      height: 75,
+      decoration: BoxDecoration(
+        color: isRunning
+            ? colorScheme.primaryContainer
+            : colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.movie,
+        color: isRunning
+            ? colorScheme.onPrimaryContainer
+            : colorScheme.onSurfaceVariant,
       ),
     );
   }

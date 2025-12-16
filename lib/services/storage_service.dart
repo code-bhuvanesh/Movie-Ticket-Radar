@@ -1,113 +1,174 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 
-/// Service for persisting app settings and tasks
+/// Service for persisting app settings and tasks using SharedPreferences
 class StorageService {
   static final StorageService _instance = StorageService._internal();
   factory StorageService() => _instance;
   StorageService._internal();
 
-  SharedPreferences? _prefs;
+  static SharedPreferences? _prefs;
+  static bool _initialized = false;
 
-  Future<SharedPreferences> get prefs async {
-    _prefs ??= await SharedPreferences.getInstance();
+  /// Initialize the storage service - call this at app startup
+  static Future<void> initialize() async {
+    if (_initialized) return;
+    try {
+      _prefs = await SharedPreferences.getInstance();
+      _initialized = true;
+      debugPrint('StorageService initialized');
+    } catch (e) {
+      debugPrint('Error initializing StorageService: $e');
+      rethrow;
+    }
+  }
+
+  /// Get the SharedPreferences instance
+  SharedPreferences get prefs {
+    if (_prefs == null) {
+      throw StateError(
+        'StorageService not initialized. Call StorageService.initialize() first.',
+      );
+    }
     return _prefs!;
   }
 
-  // Tasks
-  Future<String> getTasks() async {
-    final p = await prefs;
-    return p.getString(StorageKeys.tasks) ?? '[]';
+  /// Check if initialized
+  bool get isInitialized => _initialized;
+
+  // ==================== Tasks ====================
+
+  String getTasks() {
+    try {
+      final value = prefs.getString(StorageKeys.tasks);
+      debugPrint('Getting tasks: ${value?.length ?? 0} chars');
+      return value ?? '[]';
+    } catch (e) {
+      debugPrint('Error getting tasks: $e');
+      return '[]';
+    }
   }
 
   Future<void> saveTasks(String tasksJson) async {
-    final p = await prefs;
-    await p.setString(StorageKeys.tasks, tasksJson);
+    try {
+      await prefs.setString(StorageKeys.tasks, tasksJson);
+      debugPrint('Saved tasks: ${tasksJson.length} chars');
+    } catch (e) {
+      debugPrint('Error saving tasks: $e');
+    }
   }
 
-  // Notification settings
-  Future<bool> getWindowsNotifEnabled() async {
-    final p = await prefs;
-    return p.getBool(StorageKeys.enableWindowsNotif) ?? true;
+  // ==================== Notification Settings ====================
+
+  bool getWindowsNotifEnabled() {
+    return prefs.getBool(StorageKeys.enableWindowsNotif) ?? true;
   }
 
   Future<void> setWindowsNotifEnabled(bool value) async {
-    final p = await prefs;
-    await p.setBool(StorageKeys.enableWindowsNotif, value);
+    await prefs.setBool(StorageKeys.enableWindowsNotif, value);
   }
 
-  Future<bool> getTelegramNotifEnabled() async {
-    final p = await prefs;
-    return p.getBool(StorageKeys.enableTelegramNotif) ?? false;
+  bool getTelegramNotifEnabled() {
+    return prefs.getBool(StorageKeys.enableTelegramNotif) ?? false;
   }
 
   Future<void> setTelegramNotifEnabled(bool value) async {
-    final p = await prefs;
-    await p.setBool(StorageKeys.enableTelegramNotif, value);
+    await prefs.setBool(StorageKeys.enableTelegramNotif, value);
   }
 
-  // Telegram settings
-  Future<String> getTelegramBotToken() async {
-    final p = await prefs;
-    return p.getString(StorageKeys.telegramBotToken) ?? '';
+  // ==================== Telegram Settings ====================
+
+  String getTelegramBotToken() {
+    return prefs.getString(StorageKeys.telegramBotToken) ?? '';
   }
 
   Future<void> setTelegramBotToken(String value) async {
-    final p = await prefs;
-    await p.setString(StorageKeys.telegramBotToken, value);
+    await prefs.setString(StorageKeys.telegramBotToken, value);
   }
 
-  Future<String> getTelegramChatId() async {
-    final p = await prefs;
-    return p.getString(StorageKeys.telegramChatId) ?? '';
+  String getTelegramChatId() {
+    return prefs.getString(StorageKeys.telegramChatId) ?? '';
   }
 
   Future<void> setTelegramChatId(String value) async {
-    final p = await prefs;
-    await p.setString(StorageKeys.telegramChatId, value);
+    await prefs.setString(StorageKeys.telegramChatId, value);
   }
 
-  // Time range
-  Future<String> getTimeRange() async {
-    final p = await prefs;
-    return p.getString(StorageKeys.timeRange) ?? ApiConstants.defaultTimeRange;
+  // ==================== Time Range ====================
+
+  String getTimeRange() {
+    return prefs.getString(StorageKeys.timeRange) ??
+        ApiConstants.defaultTimeRange;
   }
 
   Future<void> setTimeRange(String value) async {
-    final p = await prefs;
-    await p.setString(StorageKeys.timeRange, value);
+    await prefs.setString(StorageKeys.timeRange, value);
   }
 
-  // Theme
-  Future<bool> getIsDarkTheme() async {
-    final p = await prefs;
-    return p.getBool(StorageKeys.isDarkTheme) ?? true;
+  // ==================== Theme ====================
+
+  bool getIsDarkTheme() {
+    return prefs.getBool(StorageKeys.isDarkTheme) ?? true;
   }
 
   Future<void> setIsDarkTheme(bool value) async {
-    final p = await prefs;
-    await p.setBool(StorageKeys.isDarkTheme, value);
+    await prefs.setBool(StorageKeys.isDarkTheme, value);
   }
 
-  // Logs
-  Future<List<String>> getLogs() async {
-    final p = await prefs;
-    return p.getStringList(StorageKeys.logs) ?? [];
+  // ==================== Selected City ====================
+
+  int? getSelectedCityId() {
+    return prefs.getInt(StorageKeys.selectedCityId);
+  }
+
+  String? getSelectedCityName() {
+    return prefs.getString(StorageKeys.selectedCityName);
+  }
+
+  Future<void> setSelectedCity(int? cityId, String? cityName) async {
+    if (cityId != null) {
+      await prefs.setInt(StorageKeys.selectedCityId, cityId);
+    } else {
+      await prefs.remove(StorageKeys.selectedCityId);
+    }
+    if (cityName != null) {
+      await prefs.setString(StorageKeys.selectedCityName, cityName);
+    } else {
+      await prefs.remove(StorageKeys.selectedCityName);
+    }
+  }
+
+  // ==================== Logs ====================
+
+  List<String> getLogs() {
+    return prefs.getStringList(StorageKeys.logs) ?? [];
   }
 
   Future<void> addLog(String log) async {
-    final p = await prefs;
-    final logs = await getLogs();
+    final logs = getLogs();
     logs.add(log);
     // Keep only last 500 logs
     if (logs.length > 500) {
       logs.removeRange(0, logs.length - 500);
     }
-    await p.setStringList(StorageKeys.logs, logs);
+    await prefs.setStringList(StorageKeys.logs, logs);
   }
 
   Future<void> clearLogs() async {
-    final p = await prefs;
-    await p.setStringList(StorageKeys.logs, []);
+    await prefs.setStringList(StorageKeys.logs, []);
+  }
+
+  // ==================== Debug ====================
+
+  /// Print all stored keys (for debugging)
+  void debugPrintAll() {
+    debugPrint('===== StorageService Debug =====');
+    debugPrint('Tasks: ${getTasks().length} chars');
+    debugPrint('Windows Notif: ${getWindowsNotifEnabled()}');
+    debugPrint('Telegram Notif: ${getTelegramNotifEnabled()}');
+    debugPrint('Theme Dark: ${getIsDarkTheme()}');
+    debugPrint('Logs: ${getLogs().length} entries');
+    debugPrint('================================');
   }
 }

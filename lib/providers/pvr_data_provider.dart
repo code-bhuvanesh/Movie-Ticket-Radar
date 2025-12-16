@@ -10,43 +10,85 @@ class PvrDataState {
   final List<City> cities;
   final List<Movie> movies;
   final List<Theatre> theatres;
+  final City? selectedCity; // null by default - user must select
+  final Movie? selectedMovie; // null by default - user must select
   final bool isLoading;
   final String? error;
-  final String selectedCity;
+  final double? userLatitude;
+  final double? userLongitude;
 
   const PvrDataState({
     this.cities = const [],
     this.movies = const [],
     this.theatres = const [],
+    this.selectedCity,
+    this.selectedMovie,
     this.isLoading = false,
     this.error,
-    this.selectedCity = 'Chennai',
+    this.userLatitude,
+    this.userLongitude,
   });
 
   PvrDataState copyWith({
     List<City>? cities,
     List<Movie>? movies,
     List<Theatre>? theatres,
+    City? selectedCity,
+    Movie? selectedMovie,
     bool? isLoading,
     String? error,
-    String? selectedCity,
+    double? userLatitude,
+    double? userLongitude,
+    bool clearSelectedCity = false,
+    bool clearSelectedMovie = false,
+    bool clearError = false,
   }) {
     return PvrDataState(
       cities: cities ?? this.cities,
       movies: movies ?? this.movies,
       theatres: theatres ?? this.theatres,
+      selectedCity: clearSelectedCity
+          ? null
+          : (selectedCity ?? this.selectedCity),
+      selectedMovie: clearSelectedMovie
+          ? null
+          : (selectedMovie ?? this.selectedMovie),
       isLoading: isLoading ?? this.isLoading,
-      error: error,
-      selectedCity: selectedCity ?? this.selectedCity,
+      error: clearError ? null : (error ?? this.error),
+      userLatitude: userLatitude ?? this.userLatitude,
+      userLongitude: userLongitude ?? this.userLongitude,
     );
   }
 
-  bool get hasData => cities.isNotEmpty && movies.isNotEmpty;
+  bool get hasData => cities.isNotEmpty;
+  bool get hasMovies => movies.isNotEmpty;
+  bool get hasTheatres => theatres.isNotEmpty;
+  bool get hasCitySelected => selectedCity != null;
+  bool get hasMovieSelected => selectedMovie != null;
+
+  /// Get cities sorted by distance from user
+  List<City> get citiesByDistance {
+    if (userLatitude != null && userLongitude != null) {
+      return City.sortByDistance(cities, userLatitude!, userLongitude!);
+    }
+    return cities;
+  }
+
+  /// Get nearest city
+  City? get nearestCity {
+    final sorted = citiesByDistance;
+    return sorted.isNotEmpty ? sorted.first : null;
+  }
 
   String get statusText {
-    if (isLoading) return '🔄 Loading data...';
-    if (error != null) return '❌ Error: $error';
-    return '✅ Ready | ${cities.length} cities | ${movies.length} movies | ${theatres.length} theatres';
+    if (isLoading) return 'Loading...';
+    if (error != null) return 'Error: $error';
+    final parts = <String>[];
+    if (cities.isNotEmpty) parts.add('${cities.length} cities');
+    if (movies.isNotEmpty) parts.add('${movies.length} movies');
+    if (theatres.isNotEmpty) parts.add('${theatres.length} theatres');
+    if (parts.isEmpty) return 'No data loaded';
+    return parts.join(' • ');
   }
 }
 
@@ -56,105 +98,118 @@ class PvrDataNotifier extends StateNotifier<PvrDataState> {
 
   PvrDataNotifier(this._apiService) : super(const PvrDataState());
 
-  /// Load all data (cities, movies, theatres)
-  Future<void> loadData({String? cityName}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  /// Set user location for distance-based sorting
+  void setUserLocation(double latitude, double longitude) {
+    state = state.copyWith(userLatitude: latitude, userLongitude: longitude);
+  }
 
+  /// Load cities
+  Future<void> loadCities() async {
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final city = cityName ?? state.selectedCity;
-
-      // Load cities
       debugPrint('Loading cities...');
       final cities = await _apiService.fetchCities();
       debugPrint('Loaded ${cities.length} cities');
+      state = state.copyWith(cities: cities, isLoading: false);
+    } catch (e) {
+      debugPrint('Error loading cities: $e');
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
 
-      // Load movies
-      debugPrint('Loading movies for $city...');
-      final movies = await _apiService.fetchMovies(city);
+  /// Select a city and load its movies
+  Future<void> selectCity(City city) async {
+    state = state.copyWith(
+      selectedCity: city,
+      clearSelectedMovie: true, // Clear movie when city changes
+      movies: [],
+      theatres: [],
+      isLoading: true,
+    );
+
+    try {
+      debugPrint('Loading movies for ${city.name}...');
+      final movies = await _apiService.fetchNowShowing(city.name);
       debugPrint('Loaded ${movies.length} movies');
-
-      // Load theatres from first movie
-      List<Theatre> theatres = [];
-      if (movies.isNotEmpty) {
-        debugPrint('Loading theatres...');
-        final today = DateTime.now();
-        final dateStr =
-            '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-        theatres = await _apiService.fetchTheatres(
-          city,
-          movies.first.id,
-          dateStr,
-        );
-        debugPrint('Loaded ${theatres.length} theatres');
-      }
-
-      state = state.copyWith(
-        cities: cities,
-        movies: movies,
-        theatres: theatres,
-        isLoading: false,
-        selectedCity: city,
-      );
+      state = state.copyWith(movies: movies, isLoading: false);
     } catch (e) {
-      debugPrint('Error loading data: $e');
-      state = state.copyWith(isLoading: false, error: e.toString());
+      debugPrint('Error loading movies: $e');
+      state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
 
-  /// Change selected city and reload movies
-  Future<void> changeCity(String cityName) async {
-    state = state.copyWith(selectedCity: cityName, isLoading: true);
-
-    try {
-      final movies = await _apiService.fetchMovies(cityName);
-
-      List<Theatre> theatres = [];
-      if (movies.isNotEmpty) {
-        final today = DateTime.now();
-        final dateStr =
-            '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-        theatres = await _apiService.fetchTheatres(
-          cityName,
-          movies.first.id,
-          dateStr,
-        );
-      }
-
-      state = state.copyWith(
-        movies: movies,
-        theatres: theatres,
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+  /// Select a movie and load theatres
+  Future<void> selectMovie(Movie movie) async {
+    if (state.selectedCity == null) {
+      state = state.copyWith(error: 'Please select a city first');
+      return;
     }
-  }
 
-  /// Refresh theatres for a specific movie
-  Future<void> loadTheatresForMovie(String movieId) async {
+    state = state.copyWith(selectedMovie: movie, theatres: [], isLoading: true);
+
     try {
-      final today = DateTime.now();
-      final dateStr =
-          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-      final theatres = await _apiService.fetchTheatres(
-        state.selectedCity,
-        movieId,
-        dateStr,
+      debugPrint(
+        'Loading theatres for ${movie.name} in ${state.selectedCity!.name}...',
       );
-      state = state.copyWith(theatres: theatres);
+      // Use cinemas API to get all theatres in the city
+      final theatres = await _apiService.fetchCinemas(
+        cityName: state.selectedCity!.name,
+      );
+      debugPrint('Loaded ${theatres.length} theatres');
+      state = state.copyWith(theatres: theatres, isLoading: false);
     } catch (e) {
       debugPrint('Error loading theatres: $e');
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+
+  /// Clear city selection
+  void clearCity() {
+    state = state.copyWith(
+      clearSelectedCity: true,
+      clearSelectedMovie: true,
+      movies: [],
+      theatres: [],
+    );
+  }
+
+  /// Clear movie selection
+  void clearMovie() {
+    state = state.copyWith(clearSelectedMovie: true, theatres: []);
+  }
+
+  /// Load all data (cities first, then movies if city is selected)
+  Future<void> loadData() async {
+    await loadCities();
+  }
+
+  /// Reload movies for current city
+  Future<void> reloadMovies() async {
+    if (state.selectedCity != null) {
+      await selectCity(state.selectedCity!);
+    }
+  }
+
+  /// Legacy method for backward compatibility
+  Future<void> changeCity(String cityName) async {
+    final city = state.cities.where((c) => c.name == cityName).firstOrNull;
+    if (city != null) {
+      await selectCity(city);
+    }
+  }
+
+  /// Legacy method for backward compatibility
+  Future<void> loadTheatresForMovie(String movieId) async {
+    final movie = state.movies.where((m) => m.id == movieId).firstOrNull;
+    if (movie != null) {
+      await selectMovie(movie);
     }
   }
 }
 
-/// Provider for PVR API service
-final pvrApiServiceProvider = Provider<PvrApiService>((ref) => PvrApiService());
-
-/// Provider for PVR data state
+/// Provider for PVR data
 final pvrDataProvider = StateNotifierProvider<PvrDataNotifier, PvrDataState>((
   ref,
 ) {
-  final apiService = ref.watch(pvrApiServiceProvider);
-  return PvrDataNotifier(apiService);
+  return PvrDataNotifier(PvrApiService());
 });

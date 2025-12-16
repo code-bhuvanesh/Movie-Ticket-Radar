@@ -25,7 +25,10 @@ dependencies:
   # Notifications
   flutter_local_notifications: ^18.0.1
   
-  # Background tasks
+  # Windows notifications
+  local_notifier: ^0.1.6
+  
+  # Background tasks (Android)
   workmanager: ^0.5.2
   
   # URL launcher
@@ -36,6 +39,12 @@ dependencies:
   
   # Google Fonts for Material 3 expressive
   google_fonts: ^6.1.0
+  
+  # Windows system tray
+  tray_manager: ^0.2.3
+  
+  # Window management
+  window_manager: ^0.4.3
 
 dev_dependencies:
   flutter_test:
@@ -44,3 +53,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  assets:
+    - assets/

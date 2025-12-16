@@ -47,15 +47,15 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     _loadSettings();
   }
 
-  Future<void> _loadSettings() async {
+  void _loadSettings() {
     try {
       final settings = SettingsState(
-        enableWindowsNotif: await _storageService.getWindowsNotifEnabled(),
-        enableTelegramNotif: await _storageService.getTelegramNotifEnabled(),
-        telegramBotToken: await _storageService.getTelegramBotToken(),
-        telegramChatId: await _storageService.getTelegramChatId(),
-        timeRange: await _storageService.getTimeRange(),
-        isDarkTheme: await _storageService.getIsDarkTheme(),
+        enableWindowsNotif: _storageService.getWindowsNotifEnabled(),
+        enableTelegramNotif: _storageService.getTelegramNotifEnabled(),
+        telegramBotToken: _storageService.getTelegramBotToken(),
+        telegramChatId: _storageService.getTelegramChatId(),
+        timeRange: _storageService.getTimeRange(),
+        isDarkTheme: _storageService.getIsDarkTheme(),
       );
       state = settings;
       debugPrint('Settings loaded');
@@ -114,8 +114,13 @@ class LogsNotifier extends StateNotifier<List<String>> {
     _loadLogs();
   }
 
-  Future<void> _loadLogs() async {
-    state = await _storageService.getLogs();
+  void _loadLogs() {
+    try {
+      state = _storageService.getLogs();
+      debugPrint('Loaded ${state.length} logs');
+    } catch (e) {
+      debugPrint('Error loading logs: $e');
+    }
   }
 
   void addLog(String message) {

@@ -5,11 +5,14 @@ class ApiConstants {
   static const String apiCities = '$apiBase/city';
   static const String apiNowShowing = '$apiBase/nowshowing';
   static const String apiSessions = '$apiBase/msessions';
+  static const String apiCinemas = '$apiBase/cinemas';
 
   static const String telegramApiBase = 'https://api.telegram.org/bot';
 
   static const String defaultTimeRange = '08:00-24:00';
   static const String defaultCity = 'Chennai';
+  static const String defaultLat = '12.89231';
+  static const String defaultLng = '80.23172';
 
   static Map<String, String> get headers => {
     'authority': 'api3.pvrcinemas.com',
@@ -47,4 +50,6 @@ class StorageKeys {
   static const String timeRange = 'time_range';
   static const String isDarkTheme = 'is_dark_theme';
   static const String logs = 'logs';
+  static const String selectedCityId = 'selected_city_id';
+  static const String selectedCityName = 'selected_city_name';
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/pvr_api_service.dart';
+import '../../services/notification_service.dart';
 
 /// Settings tab for app configuration
 class SettingsTab extends ConsumerWidget {
@@ -39,6 +40,18 @@ class SettingsTab extends ConsumerWidget {
             value: settings.enableWindowsNotif,
             onChanged: (v) =>
                 ref.read(settingsProvider.notifier).setWindowsNotifEnabled(v),
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // Test desktop notification button
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: FilledButton.tonalIcon(
+            onPressed: () => _testDesktopNotification(context, ref),
+            icon: const Icon(Icons.notifications_active),
+            label: const Text('Send Test Desktop Notification'),
           ),
         ),
 
@@ -323,6 +336,41 @@ class SettingsTab extends ConsumerWidget {
       messenger.showSnackBar(
         SnackBar(
           content: Text('❌ Error: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _testDesktopNotification(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await NotificationService().showNotification(
+        title: '🎬 Test Notification',
+        body:
+            'PVR Monitor is working! You will receive notifications here when tickets are available.',
+      );
+
+      ref
+          .read(logsProvider.notifier)
+          .addLog('🔔 Test desktop notification sent');
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            '✅ Test notification sent! Check your notification area.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('❌ Failed to send notification: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );

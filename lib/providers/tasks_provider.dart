@@ -33,6 +33,10 @@ class TasksState {
   }
 
   bool isTaskRunning(String taskId) => runningTaskIds.contains(taskId);
+
+  /// Get configured tasks only
+  List<MonitoringTask> get configuredTasks =>
+      tasks.where((t) => t.isConfigured).toList();
 }
 
 /// Notifier for monitoring tasks
@@ -53,10 +57,11 @@ class TasksNotifier extends StateNotifier<TasksState> {
     _loadTasks();
   }
 
-  Future<void> _loadTasks() async {
+  void _loadTasks() {
     state = state.copyWith(isLoading: true);
     try {
-      final tasksJson = await _storageService.getTasks();
+      final tasksJson = _storageService.getTasks();
+      debugPrint('Loading tasks from storage: ${tasksJson.length} chars');
       final tasks = MonitoringTask.decodeList(tasksJson);
       state = state.copyWith(tasks: tasks, isLoading: false);
       debugPrint('Loaded ${tasks.length} tasks');
@@ -67,7 +72,9 @@ class TasksNotifier extends StateNotifier<TasksState> {
   }
 
   Future<void> _saveTasks() async {
-    await _storageService.saveTasks(MonitoringTask.encodeList(state.tasks));
+    final json = MonitoringTask.encodeList(state.tasks);
+    debugPrint('Saving ${state.tasks.length} tasks (${json.length} chars)');
+    await _storageService.saveTasks(json);
   }
 
   /// Add a new task
@@ -75,7 +82,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
     final tasks = [...state.tasks, task];
     state = state.copyWith(tasks: tasks);
     await _saveTasks();
-    _ref.read(logsProvider.notifier).addLog('➕ Added: ${task.movieName}');
+    _ref.read(logsProvider.notifier).addLog('➕ Added: ${task.displayName}');
   }
 
   /// Update an existing task
@@ -83,7 +90,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
     final tasks = state.tasks.map((t) => t.id == task.id ? task : t).toList();
     state = state.copyWith(tasks: tasks);
     await _saveTasks();
-    _ref.read(logsProvider.notifier).addLog('✏️ Updated: ${task.movieName}');
+    _ref.read(logsProvider.notifier).addLog('✏️ Updated: ${task.displayName}');
   }
 
   /// Remove a task
@@ -97,15 +104,18 @@ class TasksNotifier extends StateNotifier<TasksState> {
 
   /// Start monitoring a task
   void startTask(String taskId) {
-    final task = state.tasks.firstWhere(
-      (t) => t.id == taskId,
-      orElse: () => throw 'Task not found',
-    );
+    final task = state.tasks.where((t) => t.id == taskId).firstOrNull;
+    if (task == null || !task.isConfigured) {
+      _ref
+          .read(logsProvider.notifier)
+          .addLog('⚠️ Cannot start unconfigured task');
+      return;
+    }
 
     final running = {...state.runningTaskIds, taskId};
     state = state.copyWith(runningTaskIds: running);
 
-    _ref.read(logsProvider.notifier).addLog('▶️ Started: ${task.movieName}');
+    _ref.read(logsProvider.notifier).addLog('▶️ Started: ${task.displayName}');
 
     // Start periodic checking
     _checkTask(taskId);
@@ -125,7 +135,9 @@ class TasksNotifier extends StateNotifier<TasksState> {
 
     final task = state.tasks.where((t) => t.id == taskId).firstOrNull;
     if (task != null) {
-      _ref.read(logsProvider.notifier).addLog('⏹️ Stopped: ${task.movieName}');
+      _ref
+          .read(logsProvider.notifier)
+          .addLog('⏹️ Stopped: ${task.displayName}');
     }
   }
 
@@ -138,9 +150,9 @@ class TasksNotifier extends StateNotifier<TasksState> {
     }
   }
 
-  /// Start all tasks
+  /// Start all configured tasks
   void startAll() {
-    for (final task in state.tasks) {
+    for (final task in state.configuredTasks) {
       if (!state.runningTaskIds.contains(task.id)) {
         startTask(task.id);
       }
@@ -157,35 +169,35 @@ class TasksNotifier extends StateNotifier<TasksState> {
   /// Check a task for available tickets
   Future<void> _checkTask(String taskId) async {
     final task = state.tasks.where((t) => t.id == taskId).firstOrNull;
-    if (task == null || !state.runningTaskIds.contains(taskId)) return;
+    if (task == null ||
+        !task.isConfigured ||
+        !state.runningTaskIds.contains(taskId)) {
+      return;
+    }
 
     final settings = _ref.read(settingsProvider);
-    final timeRange = await _storageService.getTimeRange();
+    final timeRange = _storageService.getTimeRange();
+    final dateStrings = task.dateStrings;
 
     _ref
         .read(logsProvider.notifier)
-        .addLog('🔍 Checking: ${task.movieName} (${task.days} days)');
+        .addLog('🔍 Checking: ${task.movieName} (${dateStrings.length} days)');
 
     final List<ShowSession> foundSessions = [];
 
-    // Generate dates to check
-    final today = DateTime.now();
-    for (int i = 0; i < task.days; i++) {
+    // Check each date
+    for (final dateStr in dateStrings) {
       if (!state.runningTaskIds.contains(taskId)) {
         break; // Stop if task was stopped
       }
-
-      final date = today.add(Duration(days: i));
-      final dateStr =
-          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
       try {
         await Future.delayed(const Duration(seconds: 3)); // Rate limiting
 
         final sessions = await _apiService.fetchSessions(
-          cityName: task.cityName,
-          movieId: task.movieId,
-          movieName: task.movieName,
+          cityName: task.cityName!,
+          movieId: task.movieId!,
+          movieName: task.movieName!,
           date: dateStr,
           timeRange: timeRange,
           theatreId: task.theatreId,
