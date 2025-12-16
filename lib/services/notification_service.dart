@@ -9,6 +9,8 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
+  static final ValueNotifier<String?> selectedPayload = ValueNotifier(null);
+
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
@@ -30,6 +32,14 @@ class NotificationService {
           onDidReceiveNotificationResponse: _onNotificationTapped,
         );
 
+        final details = await _flutterLocalNotificationsPlugin
+            .getNotificationAppLaunchDetails();
+        if (details != null &&
+            details.didNotificationLaunchApp &&
+            details.notificationResponse != null) {
+          _onNotificationTapped(details.notificationResponse!);
+        }
+
         await _requestAndroidPermissions();
         debugPrint('Android notification support initialized');
       } else if (Platform.isWindows) {
@@ -48,6 +58,7 @@ class NotificationService {
     }
   }
 
+  // ... (permission request)
   Future<void> _requestAndroidPermissions() async {
     try {
       final androidPlugin = _flutterLocalNotificationsPlugin
@@ -65,6 +76,7 @@ class NotificationService {
 
   void _onNotificationTapped(NotificationResponse response) {
     debugPrint('Notification tapped: ${response.payload}');
+    selectedPayload.value = response.payload ?? 'live_tab';
   }
 
   /// Show a notification
@@ -145,6 +157,7 @@ class NotificationService {
 
       notification.onClick = () {
         debugPrint('Windows notification clicked: $title');
+        selectedPayload.value = 'live_tab';
       };
 
       await notification.show();

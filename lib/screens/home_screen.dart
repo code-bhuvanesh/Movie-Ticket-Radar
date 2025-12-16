@@ -4,9 +4,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/pvr_data_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/notification_service.dart';
 import 'tasks/tasks_tab.dart';
 import 'settings/settings_tab.dart';
 import 'logs/logs_tab.dart';
+import 'live_tab.dart';
 
 /// Main home screen with navigation bar
 class HomeScreen extends ConsumerStatefulWidget {
@@ -26,6 +28,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(pvrDataProvider.notifier).loadData();
       ref.read(logsProvider.notifier).addLog('🚀 App started');
+
+      // Check if we opened via notification (if payload is already set)
+      if (NotificationService.selectedPayload.value != null) {
+        setState(() => _selectedIndex = 1);
+      }
+
+      // Listen for future notification taps
+      NotificationService.selectedPayload.addListener(() {
+        final payload = NotificationService.selectedPayload.value;
+        if (payload != null && mounted) {
+          setState(() => _selectedIndex = 1); // Switch to Live tab
+        }
+      });
     });
   }
 
@@ -53,7 +68,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Expanded(
               child: IndexedStack(
                 index: _selectedIndex,
-                children: const [TasksTab(), SettingsTab(), LogsTab()],
+                children: const [
+                  TasksTab(),
+                  LiveTab(),
+                  SettingsTab(),
+                  LogsTab(),
+                ],
               ),
             ),
           ],
@@ -68,6 +88,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             selectedIcon: const Icon(Icons.task_alt),
             label: 'Tasks',
             tooltip: 'Monitoring Tasks',
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.live_tv_outlined),
+            selectedIcon: const Icon(Icons.live_tv),
+            label: 'Live',
+            tooltip: 'Live Availability',
           ),
           NavigationDestination(
             icon: const Icon(Icons.settings_outlined),
