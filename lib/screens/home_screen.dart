@@ -223,25 +223,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 10),
 
           // Data status
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: pvrData.error != null
-                  ? colorScheme.errorContainer.withValues(alpha: 0.3)
-                  : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              pvrData.statusText,
-              style: TextStyle(
-                fontSize: 12,
-                color: pvrData.error != null
-                    ? colorScheme.error
-                    : colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
+          // Container(
+          //   width: double.infinity,
+          //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          //   decoration: BoxDecoration(
+          //     color: pvrData.error != null
+          //         ? colorScheme.errorContainer.withValues(alpha: 0.3)
+          //         : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          //     borderRadius: BorderRadius.circular(8),
+          //   ),
+          //   child: Text(
+          //     pvrData.statusText,
+          //     style: TextStyle(
+          //       fontSize: 12,
+          //       color: pvrData.error != null
+          //           ? colorScheme.error
+          //           : colorScheme.onSurfaceVariant,
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );

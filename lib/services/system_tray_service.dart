@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
@@ -33,9 +34,9 @@ class SystemTrayService with TrayListener, WindowListener {
       await windowManager.ensureInitialized();
 
       // Set up window options
-      const windowOptions = WindowOptions(
-        minimumSize: Size(400, 600),
-        size: Size(500, 800),
+      final windowOptions = WindowOptions(
+        minimumSize: const Size(400, 600),
+        size: const Size(500, 800),
         center: true,
         skipTaskbar: false,
         titleBarStyle: TitleBarStyle.normal,
@@ -53,10 +54,22 @@ class SystemTrayService with TrayListener, WindowListener {
       // Add window listener to intercept close
       windowManager.addListener(this);
 
-      // Initialize tray
-      await trayManager.setIcon(
-        Platform.isWindows ? 'assets/app_icon.ico' : 'assets/app_icon.png',
-      );
+      // Initialize tray - use absolute path for Windows
+      String iconPath;
+      if (Platform.isWindows) {
+        // Get the executable directory
+        final exePath = Platform.resolvedExecutable;
+        final exeDir = exePath.substring(
+          0,
+          exePath.lastIndexOf(Platform.pathSeparator),
+        );
+        iconPath = '$exeDir\\data\\flutter_assets\\assets\\app_icon.ico';
+        debugPrint('Tray icon path: $iconPath');
+      } else {
+        iconPath = 'assets/app_icon.png';
+      }
+
+      await trayManager.setIcon(iconPath);
 
       await trayManager.setToolTip('PVR Cinema Monitor');
 
