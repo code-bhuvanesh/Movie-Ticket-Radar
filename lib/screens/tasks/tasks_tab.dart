@@ -39,38 +39,41 @@ class TasksTab extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          // Add task button
-          FilledButton.icon(
-            onPressed: pvrData.hasData
-                ? () => _showAddTaskDialog(context, ref, pvrData)
-                : null,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Task'),
-          ),
-
-          const Spacer(),
-
-          // Start all button
-          if (tasksState.configuredTasks.isNotEmpty) ...[
-            FilledButton.tonalIcon(
-              onPressed: () => ref.read(tasksProvider.notifier).startAll(),
-              icon: const Icon(Icons.play_arrow, size: 20),
-              label: const Text('Start All'),
-            ),
-            const SizedBox(width: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            // Add task button
             FilledButton.icon(
-              onPressed: () => ref.read(tasksProvider.notifier).stopAll(),
-              icon: const Icon(Icons.stop, size: 20),
-              label: const Text('Stop All'),
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.error,
-                foregroundColor: colorScheme.onError,
-              ),
+              onPressed: pvrData.hasData
+                  ? () => _showAddTaskDialog(context, ref, pvrData)
+                  : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Task'),
             ),
+
+            const SizedBox(width: 16),
+
+            // Start all button
+            if (tasksState.configuredTasks.isNotEmpty) ...[
+              FilledButton.tonalIcon(
+                onPressed: () => ref.read(tasksProvider.notifier).startAll(),
+                icon: const Icon(Icons.play_arrow, size: 20),
+                label: const Text('Start All'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: () => ref.read(tasksProvider.notifier).stopAll(),
+                icon: const Icon(Icons.stop, size: 20),
+                label: const Text('Stop All'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.error,
+                  foregroundColor: colorScheme.onError,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -357,7 +360,11 @@ class _TaskCard extends StatelessWidget {
               const SizedBox(height: 12),
 
               // Bottom row with details and toggle
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   // Status chips
                   _InfoChip(
@@ -366,63 +373,67 @@ class _TaskCard extends StatelessWidget {
                     colorScheme: colorScheme,
                   ),
 
-                  const Spacer(),
-
-                  // Status indicator
-                  if (isRunning)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                            ),
+                  // Actions container
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Status indicator
+                      if (isRunning) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Running',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Running',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+
+                      // Toggle button
+                      FilledButton.icon(
+                        onPressed: isConfigured ? onToggle : null,
+                        icon: Icon(
+                          isRunning ? Icons.stop : Icons.play_arrow,
+                          size: 18,
+                        ),
+                        label: Text(isRunning ? 'Stop' : 'Start'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: isRunning
+                              ? colorScheme.error
+                              : colorScheme.primary,
+                          foregroundColor: isRunning
+                              ? colorScheme.onError
+                              : colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          minimumSize: const Size(0, 40),
+                        ),
                       ),
-                    ),
-
-                  const SizedBox(width: 12),
-
-                  // Toggle button
-                  FilledButton.icon(
-                    onPressed: isConfigured ? onToggle : null,
-                    icon: Icon(
-                      isRunning ? Icons.stop : Icons.play_arrow,
-                      size: 18,
-                    ),
-                    label: Text(isRunning ? 'Stop' : 'Start'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isRunning
-                          ? colorScheme.error
-                          : colorScheme.primary,
-                      foregroundColor: isRunning
-                          ? colorScheme.onError
-                          : colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      minimumSize: const Size(0, 40),
-                    ),
+                    ],
                   ),
                 ],
               ),

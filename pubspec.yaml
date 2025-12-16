@@ -28,9 +28,6 @@ dependencies:
   # Windows notifications
   local_notifier: ^0.1.6
   
-  # Background tasks (Android)
-  workmanager: ^0.5.2
-  
   # URL launcher
   url_launcher: ^6.2.2
   
@@ -45,6 +42,10 @@ dependencies:
   
   # Window management
   window_manager: ^0.4.3
+  
+  # Android background service
+  flutter_background_service: ^5.0.10
+  flutter_background_service_android: ^6.2.7
 
 dev_dependencies:
   flutter_test:

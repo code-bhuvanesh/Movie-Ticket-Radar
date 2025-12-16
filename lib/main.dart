@@ -26,8 +26,9 @@ void main() async {
     // Initialize system tray for Windows
     await SystemTrayService().initialize();
   } else if (Platform.isAndroid) {
-    // Initialize background service for Android
+    // Initialize and start background service for Android
     await BackgroundService().initialize();
+    await BackgroundService().startMonitoring();
   }
 
   runApp(const ProviderScope(child: PvrMonitorApp()));

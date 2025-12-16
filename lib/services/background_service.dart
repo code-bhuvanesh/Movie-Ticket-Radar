@@ -1,56 +1,92 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
-import 'package:workmanager/workmanager.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../services/pvr_api_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../models/monitoring_task.dart';
 
-/// Background task name for monitoring
-const String kBackgroundTaskName = 'pvr_monitor_task';
-const String kPeriodicTaskName = 'pvr_periodic_monitor';
-
-/// Callback dispatcher for background tasks (must be top-level function)
+/// Entry point for Android background service (must be top-level)
 @pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((taskName, inputData) async {
-    debugPrint('Background task executing: $taskName');
+Future<void> onStart(ServiceInstance service) async {
+  DartPluginRegistrant.ensureInitialized();
 
-    try {
-      // Initialize services
-      await StorageService.initialize();
-      final storage = StorageService();
-      final api = PvrApiService();
-      final notificationService = NotificationService();
-      await notificationService.initialize();
+  debugPrint('Background service started');
 
-      // Load tasks
-      final tasksJson = storage.getTasks();
-      final tasks = MonitoringTask.decodeList(tasksJson);
-      final configuredTasks = tasks.where((t) => t.isConfigured).toList();
+  // Initialize storage
+  await StorageService.initialize();
 
-      debugPrint('Found ${configuredTasks.length} configured tasks');
+  // For Android foreground service
+  if (service is AndroidServiceInstance) {
+    service.on('setAsForeground').listen((event) {
+      service.setAsForegroundService();
+    });
 
-      // Check each task
-      for (final task in configuredTasks) {
-        await _checkTaskInBackground(
-          task: task,
-          api: api,
-          notificationService: notificationService,
-          storage: storage,
+    service.on('setAsBackground').listen((event) {
+      service.setAsBackgroundService();
+    });
+  }
+
+  service.on('stopService').listen((event) {
+    service.stopSelf();
+  });
+
+  // Run monitoring check periodically
+  Timer.periodic(const Duration(minutes: 5), (timer) async {
+    debugPrint('Background check running...');
+
+    if (service is AndroidServiceInstance) {
+      if (await service.isForegroundService()) {
+        service.setForegroundNotificationInfo(
+          title: 'PVR Cinema Monitor',
+          content: 'Checking for ticket availability...',
         );
       }
-
-      return true;
-    } catch (e) {
-      debugPrint('Background task error: $e');
-      return false;
     }
+
+    await _runMonitoringCheck();
+
+    // Notify that we're still running
+    service.invoke('update', {
+      'current_date': DateTime.now().toIso8601String(),
+    });
   });
 }
 
-/// Check a single task in background
-Future<void> _checkTaskInBackground({
+/// Run monitoring check in background
+Future<void> _runMonitoringCheck() async {
+  try {
+    final storage = StorageService();
+    final api = PvrApiService();
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+
+    // Load tasks
+    final tasksJson = storage.getTasks();
+    final tasks = MonitoringTask.decodeList(tasksJson);
+    final configuredTasks = tasks.where((t) => t.isConfigured).toList();
+
+    debugPrint(
+      'Background: Checking ${configuredTasks.length} configured tasks',
+    );
+
+    for (final task in configuredTasks) {
+      await _checkTask(
+        task: task,
+        api: api,
+        notificationService: notificationService,
+        storage: storage,
+      );
+    }
+  } catch (e) {
+    debugPrint('Background check error: $e');
+  }
+}
+
+/// Check a single task
+Future<void> _checkTask({
   required MonitoringTask task,
   required PvrApiService api,
   required NotificationService notificationService,
@@ -61,11 +97,9 @@ Future<void> _checkTaskInBackground({
   final dateStrings = task.dateStrings;
   final timeRange = storage.getTimeRange();
 
-  debugPrint('Checking: ${task.displayName} for ${dateStrings.length} dates');
-
   for (final dateStr in dateStrings) {
     try {
-      await Future.delayed(const Duration(seconds: 2)); // Rate limiting
+      await Future.delayed(const Duration(seconds: 2));
 
       final sessions = await api.fetchSessions(
         cityName: task.cityName!,
@@ -76,7 +110,6 @@ Future<void> _checkTaskInBackground({
         theatreId: task.theatreId,
       );
 
-      // Filter by status
       for (final session in sessions) {
         bool matches = false;
         if (task.statuses.contains('available') && session.isAvailable) {
@@ -87,12 +120,26 @@ Future<void> _checkTaskInBackground({
         }
 
         if (matches) {
-          // Send notification
-          await notificationService.showNotification(
-            title: session.notificationTitle,
-            body: session.notificationBody,
-          );
-          await Future.delayed(const Duration(milliseconds: 500));
+          if (storage.getWindowsNotifEnabled()) {
+            await notificationService.showNotification(
+              title: session.notificationTitle,
+              body: session.notificationBody,
+            );
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
+
+          if (storage.getTelegramNotifEnabled()) {
+            final botToken = storage.getTelegramBotToken();
+            final chatId = storage.getTelegramChatId();
+            if (botToken.isNotEmpty && chatId.isNotEmpty) {
+              await api.sendTelegramMessage(
+                botToken: botToken,
+                chatId: chatId,
+                message: session.htmlBody,
+                parseHtml: true,
+              );
+            }
+          }
         }
       }
     } catch (e) {
@@ -101,83 +148,98 @@ Future<void> _checkTaskInBackground({
   }
 }
 
-/// Service for managing background tasks
+/// Service for managing background monitoring tasks
 class BackgroundService {
   static final BackgroundService _instance = BackgroundService._internal();
   factory BackgroundService() => _instance;
   BackgroundService._internal();
 
-  bool _isInitialized = false;
+  Timer? _monitorTimer;
+  bool _isRunning = false;
+  final FlutterBackgroundService _service = FlutterBackgroundService();
 
-  /// Initialize background service (Android only)
+  /// Check if background monitoring is running
+  bool get isRunning => _isRunning;
+
+  /// Initialize background service
   Future<void> initialize() async {
-    if (!Platform.isAndroid || _isInitialized) return;
-
-    try {
-      await Workmanager().initialize(
-        callbackDispatcher,
-        isInDebugMode: kDebugMode,
-      );
-      _isInitialized = true;
-      debugPrint('Background service initialized');
-    } catch (e) {
-      debugPrint('Error initializing background service: $e');
+    if (Platform.isAndroid) {
+      await _initializeAndroidService();
     }
+    debugPrint('Background service initialized');
   }
 
-  /// Register periodic background task
-  Future<void> registerPeriodicTask({
-    Duration frequency = const Duration(minutes: 15),
+  /// Initialize Android foreground service
+  Future<void> _initializeAndroidService() async {
+    await _service.configure(
+      androidConfiguration: AndroidConfiguration(
+        onStart: onStart,
+        autoStart: true,
+        isForegroundMode: true,
+        notificationChannelId: 'pvr_monitor_channel',
+        initialNotificationTitle: 'PVR Cinema Monitor',
+        initialNotificationContent: 'Monitoring for ticket availability',
+        foregroundServiceNotificationId: 888,
+        foregroundServiceTypes: [AndroidForegroundType.dataSync],
+      ),
+      iosConfiguration: IosConfiguration(
+        autoStart: false,
+        onForeground: onStart,
+        onBackground: (service) => true,
+      ),
+    );
+  }
+
+  /// Start background monitoring
+  Future<void> startMonitoring({
+    Duration interval = const Duration(minutes: 5),
   }) async {
-    if (!Platform.isAndroid) return;
+    if (Platform.isAndroid) {
+      // Start the Android foreground service
+      await _service.startService();
+      _isRunning = true;
+      debugPrint('Android foreground service started');
+    } else {
+      // For Windows, use timer-based approach
+      if (_isRunning) return;
 
-    try {
-      await Workmanager().registerPeriodicTask(
-        kPeriodicTaskName,
-        kBackgroundTaskName,
-        frequency: frequency,
-        constraints: Constraints(
-          networkType: NetworkType.connected,
-          requiresBatteryNotLow: false,
-          requiresCharging: false,
-          requiresDeviceIdle: false,
-          requiresStorageNotLow: false,
-        ),
-        existingWorkPolicy: ExistingWorkPolicy.replace,
-        backoffPolicy: BackoffPolicy.linear,
-        backoffPolicyDelay: const Duration(minutes: 1),
-      );
-      debugPrint('Periodic background task registered');
-    } catch (e) {
-      debugPrint('Error registering periodic task: $e');
+      _isRunning = true;
+      debugPrint('Starting timer-based monitoring');
+
+      await _runForegroundCheck();
+
+      _monitorTimer = Timer.periodic(interval, (timer) async {
+        await _runForegroundCheck();
+      });
     }
   }
 
-  /// Run task once immediately
+  /// Stop background monitoring
+  Future<void> stopMonitoring() async {
+    if (Platform.isAndroid) {
+      _service.invoke('stopService');
+    }
+    _monitorTimer?.cancel();
+    _monitorTimer = null;
+    _isRunning = false;
+    debugPrint('Background monitoring stopped');
+  }
+
+  /// Run a check in the foreground (for Windows or immediate checks)
+  Future<void> _runForegroundCheck() async {
+    await _runMonitoringCheck();
+  }
+
+  /// Run a single check immediately
   Future<void> runOnce() async {
-    if (!Platform.isAndroid) return;
-
-    try {
-      await Workmanager().registerOneOffTask(
-        '${kBackgroundTaskName}_${DateTime.now().millisecondsSinceEpoch}',
-        kBackgroundTaskName,
-        constraints: Constraints(networkType: NetworkType.connected),
-      );
-      debugPrint('One-off background task registered');
-    } catch (e) {
-      debugPrint('Error registering one-off task: $e');
-    }
+    await _runMonitoringCheck();
   }
 
-  /// Cancel all background tasks
-  Future<void> cancelAll() async {
-    if (!Platform.isAndroid) return;
-
-    try {
-      await Workmanager().cancelAll();
-      debugPrint('All background tasks cancelled');
-    } catch (e) {
-      debugPrint('Error cancelling tasks: $e');
+  /// Check if service is running (Android)
+  Future<bool> isServiceRunning() async {
+    if (Platform.isAndroid) {
+      return await _service.isRunning();
     }
+    return _isRunning;
   }
 }
