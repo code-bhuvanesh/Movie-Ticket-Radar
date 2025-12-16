@@ -1,0 +1,46 @@
+name: pvr_monitor
+description: "PVR Cinema ticket availability monitor for Windows and Android"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  cupertino_icons: ^1.0.8
+  
+  # HTTP requests
+  http: ^1.2.0
+  
+  # State management
+  flutter_riverpod: ^2.4.9
+  
+  # Local storage
+  shared_preferences: ^2.2.2
+  
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+  
+  # Background tasks
+  workmanager: ^0.5.2
+  
+  # URL launcher
+  url_launcher: ^6.2.2
+  
+  # UUID generation
+  uuid: ^4.2.2
+  
+  # Google Fonts for Material 3 expressive
+  google_fonts: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
