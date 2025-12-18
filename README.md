@@ -26,8 +26,10 @@
 
 <div align="center">
 <div align="center">
-  <img src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/home_screen.jpg" width="30%" alt="Tasks Screen" />
-  <img src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/live_screen.jpg" width="30%" alt="Live Availability" />
+  <img style="margin-right: 20px;" src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/home_screen.jpg" width="40%" alt="Tasks Screen" />
+
+
+  <img style="margin-left: 20px;" src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/live_screen.jpg" width="40%" alt="Live Availability" />
 </div>
 </div>
 
