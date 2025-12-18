@@ -19,6 +19,7 @@ class ShowSession {
   final int availableSeats;
   final bool hasSubtitle;
   final bool hasHandicap;
+  final String? cityName;
 
   const ShowSession({
     required this.sessionId,
@@ -40,12 +41,15 @@ class ShowSession {
     this.availableSeats = 0,
     this.hasSubtitle = false,
     this.hasHandicap = false,
+    this.cityName,
   });
 
   factory ShowSession.fromJson(
     Map<String, dynamic> json, {
     String? cinemaName,
     String? movieName,
+    String? cityName,
+    String? movieId,
   }) {
     return ShowSession(
       sessionId: json['sessionId'] as int? ?? 0,
@@ -53,7 +57,7 @@ class ShowSession {
       theatreName: cinemaName ?? json['cinemaName'] as String? ?? '',
       screenId: json['screenId']?.toString() ?? '',
       screenName: json['screenName'] as String? ?? '',
-      movieId: json['movieId']?.toString() ?? '',
+      movieId: movieId ?? json['movieId']?.toString() ?? '',
       movieName: movieName ?? json['movieName'] as String?,
       showDate:
           json['showDate'] as String? ?? json['showDateStr'] as String? ?? '',
@@ -68,6 +72,7 @@ class ShowSession {
       availableSeats: json['availableSeats'] as int? ?? 0,
       hasSubtitle: json['subtitle'] as bool? ?? false,
       hasHandicap: json['handicap'] as bool? ?? false,
+      cityName: cityName ?? json['cityName'] as String?,
     );
   }
 
@@ -91,7 +96,14 @@ class ShowSession {
     'availableSeats': availableSeats,
     'subtitle': hasSubtitle,
     'handicap': hasHandicap,
+    'cityName': cityName,
   };
+
+  /// Get booking URL for PVR website
+  String get bookingUrl {
+    final city = cityName ?? 'Chennai';
+    return 'https://www.pvrcinemas.com/moviesessions/${Uri.encodeComponent(city)}/$movieId';
+  }
 
   /// Is the show available for booking?
   bool get isAvailable =>
@@ -140,16 +152,16 @@ class ShowSession {
 
   /// Get status emoji
   String get statusEmoji {
-    if (isAvailable) return '✅';
-    if (isFilling) return '🔥';
-    if (isSoldOut) return '❌';
-    return '❓';
+    if (isAvailable) return '[AVAIL]';
+    if (isFilling) return '[HOT]';
+    if (isSoldOut) return '[SOLD]';
+    return '[?]';
   }
 
   /// Get notification title
   String get notificationTitle {
     final movie = movieName ?? 'Movie';
-    return '🎬 $movie - $theatreName';
+    return '[MOVIE] $movie - $theatreName';
   }
 
   /// Get notification body
@@ -166,11 +178,11 @@ class ShowSession {
   String get htmlBody {
     final movie = movieName ?? 'Movie';
     return '''
-🎬 <b>$movie</b>
-🏛️ $theatreName
-📅 $formattedDate at <b>$showTime</b>
-${format != null ? '🎞️ $format' : ''}
-${language != null ? '🗣️ $language' : ''}
+[MOVIE] <b>$movie</b>
+[THEATRE] $theatreName
+[DATE] $formattedDate at <b>$showTime</b>
+${format != null ? '[FORMAT] $format' : ''}
+${language != null ? '[LANG] $language' : ''}
 $statusEmoji <b>$statusText</b> ($availableSeats/$totalSeats seats)
 '''
         .trim();

@@ -1,4 +1,4 @@
-package com.example.pvr_monitor
+package com.example.ticket_radar
 
 import io.flutter.embedding.android.FlutterActivity
 

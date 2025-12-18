@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/constants.dart';
 import '../models/monitoring_task.dart';
 import '../models/show_session.dart';
+import '../services/background_service.dart';
 import '../services/pvr_api_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
@@ -57,13 +60,34 @@ class TasksNotifier extends StateNotifier<TasksState> {
     _loadTasks();
   }
 
-  void _loadTasks() {
+  void _loadTasks() async {
     state = state.copyWith(isLoading: true);
     try {
       final tasksJson = _storageService.getTasks();
       debugPrint('Loading tasks from storage: ${tasksJson.length} chars');
       final tasks = MonitoringTask.decodeList(tasksJson);
-      state = state.copyWith(tasks: tasks, isLoading: false);
+
+      // On Android, sync with background service state
+      Set<String> runningIds = {};
+      if (Platform.isAndroid) {
+        final isServiceRunning = await BackgroundService().isServiceRunning();
+        if (isServiceRunning) {
+          // If background service is running, all configured tasks are being monitored
+          runningIds = tasks
+              .where((t) => t.isConfigured)
+              .map((t) => t.id)
+              .toSet();
+          debugPrint(
+            'Background service running, marking ${runningIds.length} tasks as running',
+          );
+        }
+      }
+
+      state = state.copyWith(
+        tasks: tasks,
+        runningTaskIds: runningIds,
+        isLoading: false,
+      );
       debugPrint('Loaded ${tasks.length} tasks');
     } catch (e) {
       debugPrint('Error loading tasks: $e');
@@ -82,7 +106,10 @@ class TasksNotifier extends StateNotifier<TasksState> {
     final tasks = [...state.tasks, task];
     state = state.copyWith(tasks: tasks);
     await _saveTasks();
-    _ref.read(logsProvider.notifier).addLog('➕ Added: ${task.displayName}');
+    _ref.read(logsProvider.notifier).addLog('[ADDED] ${task.displayName}');
+
+    // Trigger background check immediately
+    await BackgroundService().runOnce();
   }
 
   /// Update an existing task
@@ -90,7 +117,10 @@ class TasksNotifier extends StateNotifier<TasksState> {
     final tasks = state.tasks.map((t) => t.id == task.id ? task : t).toList();
     state = state.copyWith(tasks: tasks);
     await _saveTasks();
-    _ref.read(logsProvider.notifier).addLog('✏️ Updated: ${task.displayName}');
+    _ref.read(logsProvider.notifier).addLog('[UPDATED] ${task.displayName}');
+
+    // Trigger background check immediately
+    await BackgroundService().runOnce();
   }
 
   /// Remove a task
@@ -99,7 +129,10 @@ class TasksNotifier extends StateNotifier<TasksState> {
     final tasks = state.tasks.where((t) => t.id != taskId).toList();
     state = state.copyWith(tasks: tasks);
     await _saveTasks();
-    _ref.read(logsProvider.notifier).addLog('🗑️ Removed task');
+    _ref.read(logsProvider.notifier).addLog('[REMOVED] Task removed');
+
+    // Trigger background check immediately
+    await BackgroundService().runOnce();
   }
 
   /// Start monitoring a task
@@ -108,14 +141,16 @@ class TasksNotifier extends StateNotifier<TasksState> {
     if (task == null || !task.isConfigured) {
       _ref
           .read(logsProvider.notifier)
-          .addLog('⚠️ Cannot start unconfigured task');
+          .addLog('[WARN] Cannot start unconfigured task');
       return;
     }
 
     final running = {...state.runningTaskIds, taskId};
     state = state.copyWith(runningTaskIds: running);
 
-    _ref.read(logsProvider.notifier).addLog('▶️ Started: ${task.displayName}');
+    _ref
+        .read(logsProvider.notifier)
+        .addLog('[START] Started: ${task.displayName}');
 
     // Start periodic checking
     _checkTask(taskId);
@@ -137,7 +172,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
     if (task != null) {
       _ref
           .read(logsProvider.notifier)
-          .addLog('⏹️ Stopped: ${task.displayName}');
+          .addLog('[STOP] Stopped: ${task.displayName}');
     }
   }
 
@@ -176,12 +211,14 @@ class TasksNotifier extends StateNotifier<TasksState> {
     }
 
     final settings = _ref.read(settingsProvider);
-    final timeRange = _storageService.getTimeRange();
+    final timeRange = ApiConstants.defaultTimeRange;
     final dateStrings = task.dateStrings;
 
     _ref
         .read(logsProvider.notifier)
-        .addLog('🔍 Checking: ${task.movieName} (${dateStrings.length} days)');
+        .addLog(
+          '[CHECK] Checking: ${task.movieName} (${dateStrings.length} days)',
+        );
 
     final List<ShowSession> foundSessions = [];
 
@@ -221,7 +258,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
       } catch (e) {
         _ref
             .read(logsProvider.notifier)
-            .addLog('⚠️ Error checking $dateStr: $e');
+            .addLog('[ERROR] Error checking $dateStr: $e');
       }
     }
 
@@ -239,7 +276,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
     if (foundSessions.isNotEmpty) {
       _ref
           .read(logsProvider.notifier)
-          .addLog('🎫 Found ${foundSessions.length} shows!');
+          .addLog('[FOUND] Found ${foundSessions.length} shows!');
 
       // Platform notification
       if (settings.enableWindowsNotif) {
@@ -251,27 +288,10 @@ class TasksNotifier extends StateNotifier<TasksState> {
             .toList();
         await _notificationService.showTicketNotifications(tickets);
       }
-
-      // Telegram notification
-      if (settings.enableTelegramNotif &&
-          settings.telegramBotToken.isNotEmpty) {
-        for (final session in foundSessions.take(3)) {
-          await _apiService.sendTelegramMessage(
-            botToken: settings.telegramBotToken,
-            chatId: settings.telegramChatId,
-            message: session.htmlBody,
-            parseHtml: true,
-          );
-          await Future.delayed(const Duration(seconds: 1));
-        }
-        _ref
-            .read(logsProvider.notifier)
-            .addLog('📤 Telegram notifications sent');
-      }
     } else {
       _ref
           .read(logsProvider.notifier)
-          .addLog('😴 ${task.displayName}: No tickets found');
+          .addLog('[NONE] ${task.displayName}: No tickets found');
     }
   }
 

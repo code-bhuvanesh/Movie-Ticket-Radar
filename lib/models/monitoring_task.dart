@@ -282,6 +282,12 @@ class MonitoringTask {
     }
   }
 
+  /// Get booking URL for PVR website
+  String get bookingUrl {
+    if (!isConfigured) return 'https://www.pvrcinemas.com';
+    return 'https://www.pvrcinemas.com/moviesessions/${Uri.encodeComponent(cityName!)}/$movieId';
+  }
+
   @override
   String toString() => displayName;
 

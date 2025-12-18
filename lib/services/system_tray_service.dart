@@ -40,7 +40,7 @@ class SystemTrayService with TrayListener, WindowListener {
         center: true,
         skipTaskbar: false,
         titleBarStyle: TitleBarStyle.normal,
-        title: 'PVR Cinema Monitor',
+        title: 'Ticket Radar',
       );
 
       await windowManager.waitUntilReadyToShow(windowOptions, () async {
@@ -71,7 +71,7 @@ class SystemTrayService with TrayListener, WindowListener {
 
       await trayManager.setIcon(iconPath);
 
-      await trayManager.setToolTip('PVR Cinema Monitor');
+      await trayManager.setToolTip('Ticket Radar');
 
       // Create context menu
       final menu = Menu(
@@ -101,7 +101,7 @@ class SystemTrayService with TrayListener, WindowListener {
   Future<void> updateTooltip(String status) async {
     if (!_isInitialized) return;
     try {
-      await trayManager.setToolTip('PVR Cinema Monitor\n$status');
+      await trayManager.setToolTip('Ticket Radar\n$status');
     } catch (e) {
       debugPrint('Error updating tooltip: $e');
     }

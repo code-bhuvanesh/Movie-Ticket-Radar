@@ -88,7 +88,7 @@ class PvrDataState {
     if (movies.isNotEmpty) parts.add('${movies.length} movies');
     if (theatres.isNotEmpty) parts.add('${theatres.length} theatres');
     if (parts.isEmpty) return 'No data loaded';
-    return parts.join(' • ');
+    return parts.join(' | ');
   }
 }
 

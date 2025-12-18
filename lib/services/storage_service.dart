@@ -37,6 +37,11 @@ class StorageService {
   /// Check if initialized
   bool get isInitialized => _initialized;
 
+  /// Reload preferences from disk (important for background isolates)
+  Future<void> reload() async {
+    await prefs.reload();
+  }
+
   // ==================== Tasks ====================
 
   String getTasks() {
@@ -67,43 +72,6 @@ class StorageService {
 
   Future<void> setWindowsNotifEnabled(bool value) async {
     await prefs.setBool(StorageKeys.enableWindowsNotif, value);
-  }
-
-  bool getTelegramNotifEnabled() {
-    return prefs.getBool(StorageKeys.enableTelegramNotif) ?? false;
-  }
-
-  Future<void> setTelegramNotifEnabled(bool value) async {
-    await prefs.setBool(StorageKeys.enableTelegramNotif, value);
-  }
-
-  // ==================== Telegram Settings ====================
-
-  String getTelegramBotToken() {
-    return prefs.getString(StorageKeys.telegramBotToken) ?? '';
-  }
-
-  Future<void> setTelegramBotToken(String value) async {
-    await prefs.setString(StorageKeys.telegramBotToken, value);
-  }
-
-  String getTelegramChatId() {
-    return prefs.getString(StorageKeys.telegramChatId) ?? '';
-  }
-
-  Future<void> setTelegramChatId(String value) async {
-    await prefs.setString(StorageKeys.telegramChatId, value);
-  }
-
-  // ==================== Time Range ====================
-
-  String getTimeRange() {
-    return prefs.getString(StorageKeys.timeRange) ??
-        ApiConstants.defaultTimeRange;
-  }
-
-  Future<void> setTimeRange(String value) async {
-    await prefs.setString(StorageKeys.timeRange, value);
   }
 
   // ==================== Theme ====================
@@ -159,6 +127,83 @@ class StorageService {
     await prefs.setStringList(StorageKeys.logs, []);
   }
 
+  // ==================== Notified Sessions ====================
+
+  /// Get set of notified session keys (taskId_showTime_date)
+  Set<String> getNotifiedSessions() {
+    final list = prefs.getStringList(StorageKeys.notifiedSessions) ?? [];
+    return list.toSet();
+  }
+
+  /// Add a session key to notified sessions
+  Future<void> addNotifiedSession(String sessionKey) async {
+    final sessions = getNotifiedSessions();
+    sessions.add(sessionKey);
+    // Keep only last 1000 sessions to avoid memory issues
+    final sessionsList = sessions.toList();
+    if (sessionsList.length > 1000) {
+      sessionsList.removeRange(0, sessionsList.length - 1000);
+    }
+    await prefs.setStringList(StorageKeys.notifiedSessions, sessionsList);
+  }
+
+  /// Add multiple session keys to notified sessions
+  Future<void> addNotifiedSessions(List<String> sessionKeys) async {
+    final sessions = getNotifiedSessions();
+    sessions.addAll(sessionKeys);
+    // Keep only last 1000 sessions to avoid memory issues
+    final sessionsList = sessions.toList();
+    if (sessionsList.length > 1000) {
+      sessionsList.removeRange(0, sessionsList.length - 1000);
+    }
+    await prefs.setStringList(StorageKeys.notifiedSessions, sessionsList);
+  }
+
+  /// Clear all notified sessions (usually when task is deleted)
+  Future<void> clearNotifiedSessions() async {
+    await prefs.setStringList(StorageKeys.notifiedSessions, []);
+  }
+
+  /// Clear notified sessions for a specific task
+  Future<void> clearNotifiedSessionsForTask(String taskId) async {
+    final sessions = getNotifiedSessions();
+    sessions.removeWhere((key) => key.startsWith('${taskId}_'));
+    await prefs.setStringList(StorageKeys.notifiedSessions, sessions.toList());
+  }
+
+  // ==================== Background Run Time ====================
+
+  /// Get the last time the background check ran
+  DateTime? getLastBackgroundRun() {
+    final value = prefs.getString(StorageKeys.lastBackgroundRun);
+    if (value == null) return null;
+    try {
+      return DateTime.parse(value);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Set the last time the background check ran
+  Future<void> setLastBackgroundRun(DateTime time) async {
+    await prefs.setString(
+      StorageKeys.lastBackgroundRun,
+      time.toIso8601String(),
+    );
+  }
+
+  // ==================== Debug Settings ====================
+
+  /// Get debug force notify flag (bypasses notification cache)
+  bool getDebugForceNotify() {
+    return prefs.getBool(StorageKeys.debugForceNotify) ?? false;
+  }
+
+  /// Set debug force notify flag
+  Future<void> setDebugForceNotify(bool value) async {
+    await prefs.setBool(StorageKeys.debugForceNotify, value);
+  }
+
   // ==================== Debug ====================
 
   /// Print all stored keys (for debugging)
@@ -166,9 +211,9 @@ class StorageService {
     debugPrint('===== StorageService Debug =====');
     debugPrint('Tasks: ${getTasks().length} chars');
     debugPrint('Windows Notif: ${getWindowsNotifEnabled()}');
-    debugPrint('Telegram Notif: ${getTelegramNotifEnabled()}');
     debugPrint('Theme Dark: ${getIsDarkTheme()}');
     debugPrint('Logs: ${getLogs().length} entries');
+    debugPrint('Last Background Run: ${getLastBackgroundRun()}');
     debugPrint('================================');
   }
 }
