@@ -7,8 +7,6 @@ class ApiConstants {
   static const String apiSessions = '$apiBase/msessions';
   static const String apiCinemas = '$apiBase/cinemas';
 
-  static const String telegramApiBase = 'https://api.telegram.org/bot';
-
   static const String defaultTimeRange = '08:00-24:00';
   static const String defaultCity = 'Chennai';
   static const String defaultLat = '12.89231';
@@ -44,12 +42,12 @@ class ApiConstants {
 class StorageKeys {
   static const String tasks = 'tasks';
   static const String enableWindowsNotif = 'notifications_windows';
-  static const String enableTelegramNotif = 'notifications_telegram';
-  static const String telegramBotToken = 'telegram_bot_token';
-  static const String telegramChatId = 'telegram_chat_id';
-  static const String timeRange = 'time_range';
+
   static const String isDarkTheme = 'is_dark_theme';
   static const String logs = 'logs';
   static const String selectedCityId = 'selected_city_id';
   static const String selectedCityName = 'selected_city_name';
+  static const String notifiedSessions = 'notified_sessions';
+  static const String lastBackgroundRun = 'last_background_run';
+  static const String debugForceNotify = 'debug_force_notify';
 }

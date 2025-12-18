@@ -43,23 +43,56 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
   late bool _statusAvailable;
   late bool _statusFilling;
 
+  // Pending selections (for when data is loading)
+  String? _pendingMovieId;
+  String? _pendingTheatreId;
+
   @override
   void initState() {
     super.initState();
 
     if (widget.existingTask != null) {
       final task = widget.existingTask!;
+
+      // Try to find city in available list
       _selectedCity = widget.cities
           .where((c) => c.id == task.cityId)
           .firstOrNull;
+
+      if (_selectedCity == null && task.cityName != null) {
+        // Fallback to name search if ID failed
+        _selectedCity = widget.cities
+            .where((c) => c.name == task.cityName)
+            .firstOrNull;
+      }
+
+      // Fallback to checking by checking if any city matches roughly if strict match fails
+      _selectedCity ??= widget.cities.firstOrNull;
+
+      // Try to find movie in available list (might be empty if different city selected)
       _selectedMovie = widget.movies
           .where((m) => m.id == task.movieId)
           .firstOrNull;
+
+      // If movie not found in current list, mark as pending
+      if (_selectedMovie == null &&
+          task.movieId != null &&
+          task.movieId!.isNotEmpty) {
+        _pendingMovieId = task.movieId;
+      }
+
+      // Try to find theatre
       _selectedTheatre = task.theatreId != null
           ? widget.theatres
                 .where((t) => t.theatreId == task.theatreId)
                 .firstOrNull
           : null;
+
+      // If theatre not found but ID exists, mark as pending
+      if (_selectedTheatre == null && task.theatreId != null) {
+        _pendingTheatreId = task.theatreId;
+      }
+
       _dateType = task.dateType;
       _daysFromToday = task.daysFromToday ?? 7;
       _startDate = task.startDate;
@@ -67,6 +100,30 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
       _specificDates = task.specificDates ?? [];
       _statusAvailable = task.statuses.contains('available');
       _statusFilling = task.statuses.contains('filling');
+
+      // Trigger data loading if needed
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_selectedCity != null) {
+          final notifier = ref.read(pvrDataProvider.notifier);
+          final currentState = ref.read(pvrDataProvider);
+
+          // If the selected city isn't the active one in provider, select it to load movies
+          if (currentState.selectedCity?.id != _selectedCity!.id) {
+            notifier.selectCity(_selectedCity!);
+          }
+          // If city matches but we have a pending movie, ensure we have movies
+          else if (_pendingMovieId != null && currentState.movies.isEmpty) {
+            notifier.reloadMovies();
+          }
+
+          // If movie is already selected/found, load theatres if needed
+          if (_selectedMovie != null) {
+            if (currentState.selectedMovie?.id != _selectedMovie!.id) {
+              notifier.selectMovie(_selectedMovie!);
+            }
+          }
+        }
+      });
     } else {
       _selectedCity = null; // null by default
       _selectedMovie = null; // null by default
@@ -86,6 +143,39 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
     final colorScheme = Theme.of(context).colorScheme;
     final isEditing = widget.existingTask != null;
     final pvrData = ref.watch(pvrDataProvider);
+
+    // Listen for data updates to resolve pending selections
+    ref.listen(pvrDataProvider, (previous, next) {
+      // Resolve pending movie
+      if (_pendingMovieId != null && next.movies.isNotEmpty) {
+        final foundMovie = next.movies
+            .where((m) => m.id == _pendingMovieId)
+            .firstOrNull;
+
+        if (foundMovie != null) {
+          setState(() {
+            _selectedMovie = foundMovie;
+            _pendingMovieId = null;
+          });
+          // Load theatres for this movie
+          ref.read(pvrDataProvider.notifier).selectMovie(foundMovie);
+        }
+      }
+
+      // Resolve pending theatre
+      if (_pendingTheatreId != null && next.theatres.isNotEmpty) {
+        final foundTheatre = next.theatres
+            .where((t) => t.theatreId == _pendingTheatreId)
+            .firstOrNull;
+
+        if (foundTheatre != null) {
+          setState(() {
+            _selectedTheatre = foundTheatre;
+            _pendingTheatreId = null;
+          });
+        }
+      }
+    });
 
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
@@ -479,7 +569,7 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
                 width: 60,
                 height: 90,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (context, error, stackTrace) => Container(
                   width: 60,
                   height: 90,
                   color: colorScheme.surfaceContainerHighest,
@@ -577,7 +667,7 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
       items: [
         const DropdownMenuItem<Theatre?>(
           value: null,
-          child: Text('🔍 All Theatres'),
+          child: Text('All Theatres'),
         ),
         ...theatres.map((theatre) {
           return DropdownMenuItem<Theatre?>(

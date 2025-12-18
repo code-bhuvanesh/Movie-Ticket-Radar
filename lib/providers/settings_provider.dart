@@ -5,35 +5,17 @@ import '../services/storage_service.dart';
 /// Settings state
 class SettingsState {
   final bool enableWindowsNotif;
-  final bool enableTelegramNotif;
-  final String telegramBotToken;
-  final String telegramChatId;
-  final String timeRange;
+
   final bool isDarkTheme;
 
   const SettingsState({
     this.enableWindowsNotif = true,
-    this.enableTelegramNotif = false,
-    this.telegramBotToken = '',
-    this.telegramChatId = '',
-    this.timeRange = '08:00-24:00',
     this.isDarkTheme = true,
   });
 
-  SettingsState copyWith({
-    bool? enableWindowsNotif,
-    bool? enableTelegramNotif,
-    String? telegramBotToken,
-    String? telegramChatId,
-    String? timeRange,
-    bool? isDarkTheme,
-  }) {
+  SettingsState copyWith({bool? enableWindowsNotif, bool? isDarkTheme}) {
     return SettingsState(
       enableWindowsNotif: enableWindowsNotif ?? this.enableWindowsNotif,
-      enableTelegramNotif: enableTelegramNotif ?? this.enableTelegramNotif,
-      telegramBotToken: telegramBotToken ?? this.telegramBotToken,
-      telegramChatId: telegramChatId ?? this.telegramChatId,
-      timeRange: timeRange ?? this.timeRange,
       isDarkTheme: isDarkTheme ?? this.isDarkTheme,
     );
   }
@@ -51,10 +33,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     try {
       final settings = SettingsState(
         enableWindowsNotif: _storageService.getWindowsNotifEnabled(),
-        enableTelegramNotif: _storageService.getTelegramNotifEnabled(),
-        telegramBotToken: _storageService.getTelegramBotToken(),
-        telegramChatId: _storageService.getTelegramChatId(),
-        timeRange: _storageService.getTimeRange(),
         isDarkTheme: _storageService.getIsDarkTheme(),
       );
       state = settings;
@@ -67,26 +45,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setWindowsNotifEnabled(bool value) async {
     state = state.copyWith(enableWindowsNotif: value);
     await _storageService.setWindowsNotifEnabled(value);
-  }
-
-  Future<void> setTelegramNotifEnabled(bool value) async {
-    state = state.copyWith(enableTelegramNotif: value);
-    await _storageService.setTelegramNotifEnabled(value);
-  }
-
-  Future<void> setTelegramBotToken(String value) async {
-    state = state.copyWith(telegramBotToken: value);
-    await _storageService.setTelegramBotToken(value);
-  }
-
-  Future<void> setTelegramChatId(String value) async {
-    state = state.copyWith(telegramChatId: value);
-    await _storageService.setTelegramChatId(value);
-  }
-
-  Future<void> setTimeRange(String value) async {
-    state = state.copyWith(timeRange: value);
-    await _storageService.setTimeRange(value);
   }
 
   Future<void> setDarkTheme(bool value) async {
@@ -111,16 +69,21 @@ class LogsNotifier extends StateNotifier<List<String>> {
   final StorageService _storageService;
 
   LogsNotifier(this._storageService) : super([]) {
-    _loadLogs();
+    loadLogs();
   }
 
-  void _loadLogs() {
+  void loadLogs() {
     try {
       state = _storageService.getLogs();
       debugPrint('Loaded ${state.length} logs');
     } catch (e) {
       debugPrint('Error loading logs: $e');
     }
+  }
+
+  /// Refresh logs from storage (call after background service adds logs)
+  void refresh() {
+    loadLogs();
   }
 
   void addLog(String message) {

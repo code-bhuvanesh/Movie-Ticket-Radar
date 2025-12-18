@@ -296,10 +296,11 @@ class PvrApiService {
         if (data['result'] == 'success') {
           final output = data['output'] as Map<String, dynamic>?;
           if (output != null) {
+            final String? movieCommonId =
+                output['movie']?['id']?.toString() ?? movieId;
+
             final cinemaSessions =
                 output['movieCinemaSessions'] as List<dynamic>? ?? [];
-
-            debugPrint('Found ${cinemaSessions.length} cinemas with sessions');
 
             for (final cinemaSession in cinemaSessions) {
               final cs = cinemaSession as Map<String, dynamic>;
@@ -323,6 +324,8 @@ class PvrApiService {
                     showData,
                     movieName: movieName,
                     cinemaName: cinemaName,
+                    cityName: cityName,
+                    movieId: movieCommonId,
                   );
 
                   // Debug session status
@@ -343,36 +346,6 @@ class PvrApiService {
     } catch (e) {
       debugPrint('Error fetching sessions: $e');
       throw Exception('Failed to fetch sessions: $e');
-    }
-  }
-
-  /// Send a test message to Telegram
-  Future<bool> sendTelegramMessage({
-    required String botToken,
-    required String chatId,
-    required String message,
-    bool parseHtml = false,
-  }) async {
-    try {
-      final url = '${ApiConstants.telegramApiBase}$botToken/sendMessage';
-      final payload = {
-        'chat_id': chatId,
-        'text': message,
-        if (parseHtml) 'parse_mode': 'HTML',
-      };
-
-      final response = await http
-          .post(Uri.parse(url), body: payload)
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        return data['ok'] == true;
-      }
-      return false;
-    } catch (e) {
-      debugPrint('Error sending Telegram message: $e');
-      return false;
     }
   }
 }

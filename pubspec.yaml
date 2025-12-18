@@ -1,5 +1,5 @@
-name: pvr_monitor
-description: "PVR Cinema ticket availability monitor for Windows and Android"
+name: ticket_radar
+description: "Ticket Radar - Cinema ticket availability monitor for Windows and Android"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -46,6 +46,9 @@ dependencies:
   # Android background service
   flutter_background_service: ^5.0.10
   flutter_background_service_android: ^6.2.7
+  
+  # Android intents for system settings
+  android_intent_plus: ^5.1.0
 
 dev_dependencies:
   flutter_test:

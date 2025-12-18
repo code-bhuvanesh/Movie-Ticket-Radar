@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/constants.dart';
 import '../services/pvr_api_service.dart';
-import '../services/storage_service.dart';
+
 import '../models/show_session.dart';
 import '../models/monitoring_task.dart';
 import 'tasks_provider.dart';
@@ -56,7 +57,6 @@ final liveStatusProvider =
 class LiveStatusNotifier extends StateNotifier<LiveStatusState> {
   final Ref _ref;
   final PvrApiService _apiService = PvrApiService();
-  final StorageService _storage = StorageService();
 
   LiveStatusNotifier(this._ref) : super(LiveStatusState());
 
@@ -88,7 +88,7 @@ class LiveStatusNotifier extends StateNotifier<LiveStatusState> {
 
   Future<List<ShowSession>> _fetchTaskSessions(MonitoringTask task) async {
     final List<ShowSession> allSessions = [];
-    final timeRange = _storage.getTimeRange();
+    final timeRange = ApiConstants.defaultTimeRange;
 
     for (final dateStr in task.dateStrings) {
       final sessions = await _apiService.fetchSessions(

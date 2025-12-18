@@ -1,14 +1,18 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+
 import '../providers/pvr_data_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/notification_service.dart';
+import '../services/background_service.dart';
+import '../services/storage_service.dart';
 import 'tasks/tasks_tab.dart';
 import 'settings/settings_tab.dart';
 import 'logs/logs_tab.dart';
 import 'live_tab.dart';
+import '../providers/live_status_provider.dart';
 
 /// Main home screen with navigation bar
 class HomeScreen extends ConsumerStatefulWidget {
@@ -20,6 +24,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
+  static const String _permissionAskedKey = 'battery_permission_asked';
 
   @override
   void initState() {
@@ -27,7 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Load data on startup
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(pvrDataProvider.notifier).loadData();
-      ref.read(logsProvider.notifier).addLog('🚀 App started');
+      ref.read(logsProvider.notifier).addLog('[START] App started');
 
       // Check if we opened via notification (if payload is already set)
       if (NotificationService.selectedPayload.value != null) {
@@ -41,244 +46,276 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           setState(() => _selectedIndex = 1); // Switch to Live tab
         }
       });
+
+      // Show permission dialog on Android if not shown before
+      if (Platform.isAndroid) {
+        _checkAndRequestPermissions();
+      }
     });
+  }
+
+  /// Check and request necessary permissions for background service
+  Future<void> _checkAndRequestPermissions() async {
+    final storage = StorageService();
+    final hasAsked = storage.prefs.getBool(_permissionAskedKey) ?? false;
+
+    if (!hasAsked) {
+      // Wait a bit for the UI to settle
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (mounted) {
+        await _showBatteryOptimizationDialog();
+        await storage.prefs.setBool(_permissionAskedKey, true);
+      }
+    }
+  }
+
+  /// Show dialog explaining battery optimization
+  Future<void> _showBatteryOptimizationDialog() async {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: Icon(Icons.battery_saver, color: colorScheme.primary, size: 48),
+        title: const Text('Enable Background Monitoring'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'For reliable ticket monitoring, please disable battery optimization for this app:',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
+            _buildPermissionStep('1', 'Open App Settings'),
+            _buildPermissionStep('2', 'Go to Battery'),
+            _buildPermissionStep('3', 'Select "Unrestricted"'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: colorScheme.onTertiaryContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Without this, Android may stop the background service to save battery.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onTertiaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await BackgroundService().requestBatteryOptimizationExemption();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionStep(String number, String text) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: TextStyle(
+                  color: colorScheme.onPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(text),
+        ],
+      ),
+    );
   }
 
   void _onDestinationSelected(int index) {
     setState(() {
       _selectedIndex = index;
     });
+    // If Live tab is selected, trigger refresh
+    if (index == 1) {
+      ref.read(liveStatusProvider.notifier).refreshAll();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final pvrData = ref.watch(pvrDataProvider);
     final tasks = ref.watch(tasksProvider);
 
     final runningCount = tasks.runningTaskIds.length;
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Custom header
-            _buildHeader(context, pvrData, runningCount),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final bool isWindows = Platform.isWindows;
 
-            // Content
-            Expanded(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: const [
-                  TasksTab(),
-                  LiveTab(),
-                  SettingsTab(),
-                  LogsTab(),
-                ],
-              ),
+          if (isWindows) {
+            return Row(
+              children: [
+                // Side Navigation (Windows Style)
+                NavigationRail(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: _onDestinationSelected,
+                  labelType: NavigationRailLabelType.all,
+                  groupAlignment: 0.0,
+                  destinations: _buildRailDestinations(runningCount),
+                  leading: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Icon(
+                      Icons.movie_filter,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 32,
+                    ),
+                  ),
+                ),
+                VerticalDivider(
+                  thickness: 1,
+                  width: 1,
+                  color: Theme.of(context).dividerTheme.color,
+                ),
+                // Main Content
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: const [
+                      TasksTab(),
+                      LiveTab(),
+                      SettingsTab(),
+                      LogsTab(),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Mobile Layout (Bottom Nav for both Portrait & Landscape)
+          return SafeArea(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: const [TasksTab(), LiveTab(), SettingsTab(), LogsTab()],
             ),
-          ],
-        ),
+          );
+        },
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onDestinationSelected,
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.task_alt_outlined),
-            selectedIcon: const Icon(Icons.task_alt),
-            label: 'Tasks',
-            tooltip: 'Monitoring Tasks',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.live_tv_outlined),
-            selectedIcon: const Icon(Icons.live_tv),
-            label: 'Live',
-            tooltip: 'Live Availability',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings),
-            label: 'Settings',
-            tooltip: 'App Settings',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: runningCount > 0,
-              label: Text('$runningCount'),
-              child: const Icon(Icons.receipt_long_outlined),
-            ),
-            selectedIcon: Badge(
-              isLabelVisible: runningCount > 0,
-              label: Text('$runningCount'),
-              child: const Icon(Icons.receipt_long),
-            ),
-            label: 'Logs',
-            tooltip: 'Activity Logs',
-          ),
-        ],
-      ),
+      bottomNavigationBar: !Platform.isWindows
+          ? NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _onDestinationSelected,
+              destinations: _buildBarDestinations(runningCount),
+            )
+          : null,
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    PvrDataState pvrData,
-    int runningCount,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        border: Border(
-          bottom: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-          ),
+  List<NavigationDestination> _buildBarDestinations(int runningCount) {
+    return [
+      const NavigationDestination(
+        icon: Icon(Icons.task_alt_outlined),
+        selectedIcon: Icon(Icons.task_alt),
+        label: 'Tasks',
+        tooltip: 'Monitoring Tasks',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.live_tv_outlined),
+        selectedIcon: Icon(Icons.live_tv),
+        label: 'Live',
+        tooltip: 'Live Availability',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: 'Settings',
+        tooltip: 'App Settings',
+      ),
+      NavigationDestination(
+        icon: Badge(
+          isLabelVisible: runningCount > 0,
+          label: Text('$runningCount'),
+          child: const Icon(Icons.receipt_long_outlined),
         ),
+        selectedIcon: Badge(
+          isLabelVisible: runningCount > 0,
+          label: Text('$runningCount'),
+          child: const Icon(Icons.receipt_long),
+        ),
+        label: 'Logs',
+        tooltip: 'Activity Logs',
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // App icon and title
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      colorScheme.primaryContainer,
-                      colorScheme.tertiaryContainer,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.movie_filter,
-                  color: colorScheme.onPrimaryContainer,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PVR Cinema Monitor',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Track ticket availability instantly',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: colorScheme.onSurfaceVariant),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (runningCount > 0) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.primary,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$runningCount active',
-                                  style: TextStyle(
-                                    color: colorScheme.onPrimaryContainer,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+    ];
+  }
 
-              const SizedBox(width: 8),
-
-              // Refresh button
-              IconButton.filledTonal(
-                onPressed: pvrData.isLoading
-                    ? null
-                    : () => ref.read(pvrDataProvider.notifier).loadData(),
-                icon: pvrData.isLoading
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colorScheme.primary,
-                        ),
-                      )
-                    : const Icon(Icons.refresh),
-                tooltip: 'Refresh Data',
-              ),
-
-              // PVR Website button
-              IconButton.filledTonal(
-                onPressed: () =>
-                    launchUrl(Uri.parse('https://www.pvrcinemas.com')),
-                icon: const Icon(Icons.open_in_new),
-                tooltip: 'Open PVR Website',
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          // Data status
-          // Container(
-          //   width: double.infinity,
-          //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          //   decoration: BoxDecoration(
-          //     color: pvrData.error != null
-          //         ? colorScheme.errorContainer.withValues(alpha: 0.3)
-          //         : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          //     borderRadius: BorderRadius.circular(8),
-          //   ),
-          //   child: Text(
-          //     pvrData.statusText,
-          //     style: TextStyle(
-          //       fontSize: 12,
-          //       color: pvrData.error != null
-          //           ? colorScheme.error
-          //           : colorScheme.onSurfaceVariant,
-          //     ),
-          //   ),
-          // ),
-        ],
+  List<NavigationRailDestination> _buildRailDestinations(int runningCount) {
+    return [
+      const NavigationRailDestination(
+        icon: Icon(Icons.task_alt_outlined),
+        selectedIcon: Icon(Icons.task_alt),
+        label: Text('Tasks'),
       ),
-    );
+      const NavigationRailDestination(
+        icon: Icon(Icons.live_tv_outlined),
+        selectedIcon: Icon(Icons.live_tv),
+        label: Text('Live'),
+      ),
+      const NavigationRailDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: Text('Settings'),
+      ),
+      NavigationRailDestination(
+        icon: Badge(
+          isLabelVisible: runningCount > 0,
+          label: Text('$runningCount'),
+          child: const Icon(Icons.receipt_long_outlined),
+        ),
+        selectedIcon: Badge(
+          isLabelVisible: runningCount > 0,
+          label: Text('$runningCount'),
+          child: const Icon(Icons.receipt_long),
+        ),
+        label: const Text('Logs'),
+      ),
+    ];
   }
 }
