@@ -1,4 +1,4 @@
-# 🎟️ Ticket Radar
+# <img src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/assets/app_icon.png" height="40"> Ticket Radar
 
 **Ticket Radar** is a cross-platform Flutter application (Android & Windows) designed to help you catch movie tickets before they sell out. It monitors cinema booking availability in the background and notifies you the moment tickets open up.
 
@@ -25,12 +25,9 @@
 
 
 <div align="center">
-<div align="center">
-  <img style="margin-right: 20px;" src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/home_screen.jpg" width="40%" alt="Tasks Screen" />
-
-
-  <img style="margin-left: 20px;" src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/live_screen.jpg" width="40%" alt="Live Availability" />
-</div>
+  <img src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/home_screen.jpg" width="45%" alt="Tasks Screen" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/refs/heads/main/screenshots/live_screen.jpg" width="45%" alt="Live Availability" />
 </div>
 
 
