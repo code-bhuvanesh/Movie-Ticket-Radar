@@ -416,24 +416,6 @@ class _TaskCard extends StatelessWidget {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  if (isConfigured) ...[
-                                    InkWell(
-                                      onTap: () => launchUrl(
-                                        Uri.parse(task.bookingUrl),
-                                        mode: LaunchMode.externalApplication,
-                                      ),
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(4),
-                                        child: Icon(
-                                          Icons.language_outlined,
-                                          color: colorScheme.primary,
-                                          size: 20,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                  ],
                                   InkWell(
                                     onTap: onEdit,
                                     borderRadius: BorderRadius.circular(20),

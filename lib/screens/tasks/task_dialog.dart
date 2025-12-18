@@ -5,6 +5,7 @@ import '../../models/movie.dart';
 import '../../models/theatre.dart';
 import '../../models/monitoring_task.dart';
 import '../../providers/pvr_data_provider.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 /// Dialog for adding/editing monitoring tasks
 class TaskDialog extends ConsumerStatefulWidget {
@@ -488,63 +489,41 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
   }
 
   Widget _buildCityDropdown(PvrDataState pvrData) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return DropdownButtonFormField<City>(
-      initialValue: _selectedCity,
-      decoration: InputDecoration(
-        hintText: 'Choose your city',
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        prefixIcon: const Icon(Icons.location_on),
-      ),
-      items: pvrData.citiesByDistance.map((city) {
-        return DropdownMenuItem<City>(
-          value: city,
-          child: Text(city.name, overflow: TextOverflow.ellipsis),
-        );
-      }).toList(),
+    return SearchableDropdown<City>(
+      value: _selectedCity,
+      hintText: 'Choose your city',
+      searchHint: 'Search cities...',
+      prefixIcon: Icons.location_on,
+      items: pvrData.citiesByDistance,
+      itemLabel: (city) => city.name,
       onChanged: (city) {
+        if (city == null) return;
         setState(() {
           _selectedCity = city;
           _selectedMovie = null;
           _selectedTheatre = null;
         });
-        if (city != null) {
-          ref.read(pvrDataProvider.notifier).selectCity(city);
-        }
+        ref.read(pvrDataProvider.notifier).selectCity(city);
       },
-      isExpanded: true,
     );
   }
 
   Widget _buildMovieDropdown(List<Movie> movies) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return DropdownButtonFormField<Movie>(
-      initialValue: _selectedMovie,
-      decoration: InputDecoration(
-        hintText: 'Choose a movie',
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        prefixIcon: const Icon(Icons.movie),
-      ),
-      items: movies.map((movie) {
-        return DropdownMenuItem<Movie>(
-          value: movie,
-          child: Text(movie.name, overflow: TextOverflow.ellipsis),
-        );
-      }).toList(),
+    return SearchableDropdown<Movie>(
+      value: _selectedMovie,
+      hintText: 'Choose a movie',
+      searchHint: 'Search movies...',
+      prefixIcon: Icons.movie,
+      items: movies,
+      itemLabel: (movie) => movie.name,
       onChanged: (movie) {
+        if (movie == null) return;
         setState(() {
           _selectedMovie = movie;
           _selectedTheatre = null;
         });
-        if (movie != null) {
-          ref.read(pvrDataProvider.notifier).selectMovie(movie);
-        }
+        ref.read(pvrDataProvider.notifier).selectMovie(movie);
       },
-      isExpanded: true,
     );
   }
 
@@ -654,30 +633,14 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
   }
 
   Widget _buildTheatreDropdown(List<Theatre> theatres) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return DropdownButtonFormField<Theatre?>(
-      initialValue: _selectedTheatre,
-      decoration: InputDecoration(
-        hintText: 'All theatres (optional)',
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        prefixIcon: const Icon(Icons.theater_comedy),
-      ),
-      items: [
-        const DropdownMenuItem<Theatre?>(
-          value: null,
-          child: Text('All Theatres'),
-        ),
-        ...theatres.map((theatre) {
-          return DropdownMenuItem<Theatre?>(
-            value: theatre,
-            child: Text(theatre.name, overflow: TextOverflow.ellipsis),
-          );
-        }),
-      ],
+    return SearchableDropdown<Theatre?>(
+      value: _selectedTheatre,
+      hintText: 'All theatres (optional)',
+      searchHint: 'Search theatres...',
+      prefixIcon: Icons.theater_comedy,
+      items: [null, ...theatres],
+      itemLabel: (theatre) => theatre?.name ?? 'All Theatres',
       onChanged: (theatre) => setState(() => _selectedTheatre = theatre),
-      isExpanded: true,
     );
   }
 
