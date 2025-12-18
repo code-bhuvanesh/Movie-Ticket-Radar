@@ -1,6 +1,6 @@
-# pvr_monitor
+# Ticket Radar
 
-A new Flutter project.
+Cinema ticket availability monitor for Windows and Android.
 
 ## Getting Started
 

@@ -382,7 +382,7 @@ class BackgroundService {
     try {
       const intent = AndroidIntent(
         action: 'android.settings.APPLICATION_DETAILS_SETTINGS',
-        data: 'package:com.example.pvr_monitor',
+        data: 'package:com.example.ticket_radar',
       );
       await intent.launch();
       return true;
