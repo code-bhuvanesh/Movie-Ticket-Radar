@@ -27,14 +27,11 @@
 
 
 <div align="center">
-  <img src="assets/screenshot_tasks.png" width="30%" alt="Tasks Screen" />
-  <img src="assets/screenshot_live.png" width="30%" alt="Live Availability" />
-  <img src="assets/screenshot_notifications.png" width="30%" alt="Notifications" />
+<div align="center">
+  <img src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/main/screenshots/home_screen.png" width="30%" alt="Tasks Screen" />
+  <img src="https://raw.githubusercontent.com/code-bhuvanesh/Ticket-Radar/main/screenshots/live_screen.png" width="30%" alt="Live Availability" />
 </div>
-
-| Monitoring Tasks | Live Availability | Smart Notifications |
-|:---:|:---:|:---:|
-| Create complex filters | View real-time seats | Get notified instantly |
+</div>
 
 
 ## 📥 Downloads
