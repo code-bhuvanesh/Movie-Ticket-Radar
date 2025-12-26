@@ -4,6 +4,7 @@ class ApiConstants {
       'https://api3.pvrcinemas.com/api/v1/booking/content';
   static const String apiCities = '$apiBase/city';
   static const String apiNowShowing = '$apiBase/nowshowing';
+  static const String apiComingSoon = '$apiBase/comingsoon';
   static const String apiSessions = '$apiBase/msessions';
   static const String apiCinemas = '$apiBase/cinemas';
 

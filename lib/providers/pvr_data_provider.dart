@@ -129,9 +129,33 @@ class PvrDataNotifier extends StateNotifier<PvrDataState> {
 
     try {
       debugPrint('Loading movies for ${city.name}...');
-      final movies = await _apiService.fetchNowShowing(city.name);
-      debugPrint('Loaded ${movies.length} movies');
-      state = state.copyWith(movies: movies, isLoading: false);
+
+      // Fetch both now showing and coming soon movies
+      final results = await Future.wait([
+        _apiService.fetchNowShowing(city.name),
+        _apiService.fetchComingSoon(city.name),
+      ]);
+
+      final nowShowing = results[0];
+      final comingSoon = results[1];
+
+      // Combine and dedup based on ID
+      final Map<String, Movie> movieMap = {};
+      for (final m in nowShowing) {
+        movieMap[m.id] = m;
+      }
+      for (final m in comingSoon) {
+        if (!movieMap.containsKey(m.id)) {
+          movieMap[m.id] = m;
+        }
+      }
+
+      final allMovies = movieMap.values.toList();
+
+      debugPrint(
+        'Loaded ${allMovies.length} movies (Showing: ${nowShowing.length}, Upcoming: ${comingSoon.length})',
+      );
+      state = state.copyWith(movies: allMovies, isLoading: false);
     } catch (e) {
       debugPrint('Error loading movies: $e');
       state = state.copyWith(error: e.toString(), isLoading: false);

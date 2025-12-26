@@ -110,6 +110,50 @@ class PvrApiService {
     }
   }
 
+  /// Fetch upcoming movies for a city
+  Future<List<Movie>> fetchComingSoon(String cityName) async {
+    try {
+      final headers = Map<String, String>.from(ApiConstants.headers);
+      headers['city'] = cityName;
+
+      debugPrint('Fetching coming soon movies for city: $cityName');
+
+      final response = await http
+          .post(
+            Uri.parse(ApiConstants.apiComingSoon),
+            headers: headers,
+            body: jsonEncode({'city': cityName, 'genres': '', 'languages': ''}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      debugPrint('Coming Soon API response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['result'] == 'success') {
+          final output = data['output'] as Map<String, dynamic>?;
+          if (output != null) {
+            final mvList = output['movies'] as List<dynamic>? ?? [];
+            final movies = mvList
+                .map((m) => Movie.fromJson(m as Map<String, dynamic>))
+                .toList();
+            debugPrint('Parsed ${movies.length} coming soon movies');
+
+            // Mark these as upcoming in some way if needed, for now just returning Movie objects
+            // The JSON has "movieType": "UPCOMING" which we could use if we updated the model
+
+            return movies;
+          }
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching coming soon movies: $e');
+      // Return empty list on error to not disrupt flow
+      return [];
+    }
+  }
+
   /// Alias for backward compatibility
   Future<List<Movie>> fetchMovies(String cityName) => fetchNowShowing(cityName);
 

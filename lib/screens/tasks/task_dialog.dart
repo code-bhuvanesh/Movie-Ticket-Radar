@@ -284,7 +284,7 @@ class _TaskDialogState extends ConsumerState<TaskDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${pvrData.movies.length} movies now showing',
+                            '${pvrData.movies.length} movies found',
                             style: TextStyle(
                               color: colorScheme.primary,
                               fontSize: 12,
